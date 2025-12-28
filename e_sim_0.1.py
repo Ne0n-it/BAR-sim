@@ -1,4 +1,5 @@
 # OTTIMO
+# economy_sim_36.py
 import numpy as np
 import cupy as cp
 import matplotlib.pyplot as plt
@@ -623,4 +624,5 @@ if __name__ == "__main__":
     sim = BarOptimizer()
     best_hist, best_state, best_squads = sim.run()
     
+
     plot_results(best_hist, best_state, best_squads)
