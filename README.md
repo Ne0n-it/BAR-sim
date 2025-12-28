@@ -1,7 +1,5 @@
 # BAR-sim
 
-Scrivi uno script python per windows:
-
 Il software è un **simulatore economico** progettato specificamente per ottimizzare l'apertura (Early Game) di *Beyond All Reason*. Il suo scopo è trovare la sequenza di costruzione ("Build Order") che massimizza la crescita economica senza incappare in blocchi di risorse fatali.
 
 Utilizza le librerie numpy e cupy (e anche tqdm)
