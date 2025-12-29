@@ -31,33 +31,32 @@ MEX_FORT_COST = {'m': 170, 'e': 1360, 'bp': 4800}
 DB = {
     'Commander': {
         'bp': 0, 'm': 0, 'e': 0, 'BP': 300, 'M': 2, 'E': 25,
-        'is_structure': False,
         'build_options': ['Mex', 'Solar', 'Wind', 'EStorage', 'BotLab', 'VehLab', 'AirLab']
     },
-    'Solar':    {'m': 155, 'e': 0, 'bp': 2600, 'E': 20, 'M': 0, 'BP': 0, 'is_structure': True, 'e_drain': 0},
-    'Adv_Solar':{'m': 350, 'e': 5000, 'bp': 7950, 'E': 75, 'M': 0, 'BP': 0, 'is_structure': True, 'e_drain': 0},
-    'Wind':     {'m': 40, 'e': 175, 'bp': 1600, 'E': WIND_LEVEL, 'M': 0, 'BP': 0, 'is_structure': True, 'e_drain': 0},
-    'Reactor':  {'m': 4300, 'e': 21000, 'bp': 70000, 'E': 1000, 'M': 0, 'BP': 0, 'is_structure': True, 'e_drain': 0},
-    'Mex':      {'m': 50, 'e': 500, 'bp': 1800, 'E': 0, 'M': MEX_METAL_YIELD, 'BP': 0, 'is_structure': True, 'e_drain': 3},
-    'Adv_Mex':  {'m': 620, 'e': 7700, 'bp': 14900, 'E': 0, 'M': MEX_METAL_YIELD*4, 'BP': 0, 'is_structure': True, 'e_drain': 20},
-    'EStorage': {'m': 260, 'e': 1700, 'bp': 4110, 'E': 0, 'M': 0, 'BP': 0, 'storage': 6000, 'is_structure': True, 'e_drain': 0},
-    'DefMex':   {'m': 190, 'e': 0, 'bp': 2400, 'E': 0, 'M': 0, 'BP': 0, 'is_structure': True, 'e_drain': 0}, # Dummy entry per costi
+    'Solar':    {'m': 155, 'e': 0, 'bp': 2600, 'E': 20, 'M': 0, 'BP': 0, 'e_drain': 0},
+    'Adv_Solar':{'m': 350, 'e': 5000, 'bp': 7950, 'E': 75, 'M': 0, 'BP': 0, 'e_drain': 0},
+    'Wind':     {'m': 40, 'e': 175, 'bp': 1600, 'E': WIND_LEVEL, 'M': 0, 'BP': 0, 'e_drain': 0},
+    'Reactor':  {'m': 4300, 'e': 21000, 'bp': 70000, 'E': 1000, 'M': 0, 'BP': 0, 'e_drain': 0},
+    'Mex':      {'m': 50, 'e': 500, 'bp': 1800, 'E': 0, 'M': MEX_METAL_YIELD, 'BP': 0, 'e_drain': 3},
+    'Adv_Mex':  {'m': 620, 'e': 7700, 'bp': 14900, 'E': 0, 'M': MEX_METAL_YIELD*4, 'BP': 0, 'e_drain': 20},
+    'EStorage': {'m': 260, 'e': 1700, 'bp': 4110, 'E': 0, 'M': 0, 'BP': 0, 'storage': 6000, 'e_drain': 0},
+    'DefMex':   {'m': 190, 'e': 0, 'bp': 2400, 'E': 0, 'M': 0, 'BP': 0, 'e_drain': 0}, # Dummy entry per costi
 
     # Factories
-    'AirLab':    {'m': 600, 'e': 1200, 'bp': 7000, 'BP': 100, 'is_structure': True, 'e_drain': 0, 'builder_name': 'ConAir', 'unit_options': ['ConAir', 'Offensive']},
-    'BotLab':    {'m': 650, 'e': 1200, 'bp': 6500, 'BP': 100, 'is_structure': True, 'e_drain': 0, 'builder_name': 'ConBot', 'unit_options': ['ConBot', 'Offensive']},
-    'VehLab':    {'m': 590, 'e': 1550, 'bp': 5700, 'BP': 100, 'is_structure': True, 'e_drain': 0, 'builder_name': 'ConVeh', 'unit_options': ['ConVeh', 'Offensive']},
-    'Adv_VehLab':{'m': 2900, 'e': 14000, 'bp': 18000, 'BP': 300, 'is_structure': True, 'e_drain': 0, 'builder_name': 'Adv_ConVeh', 'unit_options': ['Adv_ConVeh', 'Adv_Offensive']},
+    'AirLab':    {'m': 600, 'e': 1200, 'bp': 7000, 'BP': 100, 'e_drain': 0, 'unit_options': ['ConAir', 'Offensive']},
+    'BotLab':    {'m': 650, 'e': 1200, 'bp': 6500, 'BP': 100, 'e_drain': 0, 'unit_options': ['ConBot', 'Offensive']},
+    'VehLab':    {'m': 590, 'e': 1550, 'bp': 5700, 'BP': 100, 'e_drain': 0, 'unit_options': ['ConVeh', 'Offensive']},
+    'Adv_VehLab':{'m': 2900, 'e': 14000, 'bp': 18000, 'BP': 300, 'e_drain': 0, 'unit_options': ['Adv_ConVeh', 'Adv_Offensive']},
 
     # Builders
-    'ConAir':    {'m': 100, 'e': 2400, 'bp': 5000, 'BP': 50, 'is_structure': False, 'e_drain': 0, 'build_options': ['Mex', 'Solar', 'Wind', 'EStorage', 'Adv_Solar', 'Adv_VehLab']},
-    'ConBot':    {'m': 110, 'e': 2200, 'bp': 4500, 'BP': 80, 'is_structure': False, 'e_drain': 0, 'build_options': ['Mex', 'Solar', 'Wind', 'EStorage', 'Adv_Solar', 'Adv_VehLab']},
-    'ConVeh':    {'m': 135, 'e': 1950, 'bp': 4100, 'BP': 90, 'is_structure': False, 'e_drain': 0, 'build_options': ['Mex', 'Solar', 'Wind', 'EStorage', 'Adv_Solar', 'Adv_VehLab']},
-    'Adv_ConVeh':{'m': 550, 'e': 6800, 'bp': 12400, 'BP': 250, 'is_structure': False, 'e_drain': 0, 'build_options': ['Adv_Mex', 'Reactor', 'Adv_Solar']},
+    'ConAir':    {'m': 100, 'e': 2400, 'bp': 5000, 'BP': 50, 'e_drain': 0, 'build_options': ['Mex', 'Solar', 'Wind', 'EStorage', 'Adv_Solar', 'Adv_VehLab']},
+    'ConBot':    {'m': 110, 'e': 2200, 'bp': 4500, 'BP': 80, 'e_drain': 0, 'build_options': ['Mex', 'Solar', 'Wind', 'EStorage', 'Adv_Solar', 'Adv_VehLab']},
+    'ConVeh':    {'m': 135, 'e': 1950, 'bp': 4100, 'BP': 90, 'e_drain': 0, 'build_options': ['Mex', 'Solar', 'Wind', 'EStorage', 'Adv_Solar', 'Adv_VehLab']},
+    'Adv_ConVeh':{'m': 550, 'e': 6800, 'bp': 12400, 'BP': 250, 'e_drain': 0, 'build_options': ['Adv_Mex', 'Reactor', 'Adv_Solar']},
 
     # Offensive
-    'Offensive': {'m': 200, 'e': 2250, 'bp': 3500, 'BP': 0, 'is_structure': False, 'e_drain': 0},
-    'Adv_Offensive': {'m': 950, 'e': 13000, 'bp': 17200, 'BP': 0, 'is_structure': False, 'e_drain': 0}
+    'Offensive': {'m': 200, 'e': 2250, 'bp': 3500, 'BP': 0, 'e_drain': 0},
+    'Adv_Offensive': {'m': 950, 'e': 13000, 'bp': 17200, 'BP': 0, 'e_drain': 0}
 }
 
 # Mapping ID numerici per GPU
