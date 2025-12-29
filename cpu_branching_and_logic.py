@@ -77,8 +77,8 @@ class BarOptimizer:
                         if unit_name == FACTORY_TYPE:
                             parent_sq[1][0] = DB[FACTORY_TYPE]['BP']
                             parent_sq[1][1] = ST_IDLE
-                        elif unit_name == 'Adv_VehLab':
-                             parent_sq[5][0] = DB['Adv_VehLab']['BP']
+                        elif unit_name == ADV_FACTORY_TYPE:
+                             parent_sq[5][0] = DB[ADV_FACTORY_TYPE]['BP']
                              parent_sq[5][1] = ST_IDLE
                         elif unit_name == 'Adv_ConVeh':
                              parent_sq[6][0] = DB['Adv_ConVeh']['BP']
@@ -116,13 +116,9 @@ class BarOptimizer:
                     options = []
                     squad_name = SQUAD_NAMES[s_idx]
 
-                    builder_type = None
-                    if s_idx == 0: builder_type = 'Commander'
-                    elif 1 <= s_idx <= 4: builder_type = 'ConVeh' if s_idx > 1 else 'VehLab'
-                    elif s_idx == 5: builder_type = 'Adv_VehLab'
-                    elif s_idx == 6: builder_type = 'Adv_ConVeh'
+                    builder_type = SQUAD_NAMES[s_idx]
 
-                    if 'Lab' in builder_type:
+                    if 'Plant' in builder_type or 'Lab' in builder_type or 'Gantry' in builder_type or 'Shipyard' in builder_type or 'Platform' in builder_type or 'Complex' in builder_type:
                         raw_opts = DB[builder_type].get('unit_options', [])
                         for opt in raw_opts:
                             options.append(opt)
