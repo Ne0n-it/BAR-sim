@@ -207,9 +207,11 @@ class BarSimOptimized:
             self.sq_buf[0, squad_idx, 2] = unit_idx
 
             initial_unit_count = self.inv_buf[0, unit_idx]
-            while self.inv_buf[0, unit_idx] == initial_unit_count:
+            loop_guard = 0
+            while self.inv_buf[0, unit_idx] == initial_unit_count and loop_guard < TIME_LIMIT:
                 self.physics_step()
                 self.resolve_completions()
+                loop_guard += 1
 
     def physics_step(self):
         n = self.total_sims
@@ -280,16 +282,13 @@ class BarSimOptimized:
         unit_categories = G_STATS[unit_ids, IDX_CATEGORY]
         is_builder = (unit_categories == CATEGORY_MAP['BUILDER'])
 
-        # Handle builder completion
         if cp.any(is_builder):
             builder_sim_idxs = sim_idxs[is_builder]
             builder_unit_ids = unit_ids[is_builder]
-
             unassigned_squad_idx = SQ_MAP['Unassigned']
             self.sq_buf[builder_sim_idxs, unassigned_squad_idx, 0] = ST_UNASSIGNED_BUILDER
             self.sq_buf[builder_sim_idxs, unassigned_squad_idx, 2] = builder_unit_ids.astype(cp.float32)
 
-        # Add units to inventory for non-builders
         non_builder_mask = ~is_builder
         if cp.any(non_builder_mask):
             cp.add.at(self.inv_buf, (sim_idxs[non_builder_mask], unit_ids[non_builder_mask]), 1)
@@ -300,7 +299,7 @@ class BarSimOptimized:
         self.sq_buf[sim_idxs, sq_idxs, 0] = ST_IDLE
         self.sq_buf[sim_idxs, sq_idxs, 2] = -1
         self.sq_buf[sim_idxs, sq_idxs, 3] = 0
-        self.sq_buf[sim_idxs, sq_idxs, 6] = G_STATS[unit_ids, IDX_CATEGORY]
+        self.sq_buf[sim_idxs, sq_idxs, 6] = unit_ids.astype(cp.float32)
 
     def branching_step(self):
         n = self.total_sims
@@ -308,8 +307,6 @@ class BarSimOptimized:
         self.sq_buf[:n][(self.sq_buf[:n, :, 0] == ST_TRAVEL) & (self.sq_buf[:n, :, 4] <= 0)] = ST_IDLE
         self.sq_buf[:n][(self.sq_buf[:n, :, 0] == ST_WAITING) & (self.sq_buf[:n, :, 4] <= 0)] = ST_IDLE
 
-        # --- Branching for Unassigned Builders ---
-        # This part is complex, for now we will just merge them into the first available ConSquad
         unassigned_squad_idx = SQ_MAP['Unassigned']
         is_unassigned = (self.sq_buf[:n, unassigned_squad_idx, 0] == ST_UNASSIGNED_BUILDER)
         unassigned_sim_indices = cp.where(is_unassigned)[0]
@@ -317,87 +314,64 @@ class BarSimOptimized:
         if len(unassigned_sim_indices) > 0:
             builder_unit_id = self.sq_buf[unassigned_sim_indices, unassigned_squad_idx, 2].astype(cp.int32)
             builder_bp = G_STATS[builder_unit_id, IDX_BP_ADD]
-
-            # Simple logic: merge into ConSquad1
             target_squad_idx = SQ_MAP['ConSquad1']
             cp.add.at(self.sq_buf[:, target_squad_idx, 1], unassigned_sim_indices, builder_bp)
             self.sq_buf[unassigned_sim_indices, target_squad_idx, 0] = cp.maximum(self.sq_buf[unassigned_sim_indices, target_squad_idx, 0], ST_IDLE)
-
             self.sq_buf[unassigned_sim_indices, unassigned_squad_idx, 0] = ST_INACTIVE
             self.sq_buf[unassigned_sim_indices, unassigned_squad_idx, 2] = -1
 
-
-        # --- Branching for Idle Squads ---
         is_idle = (self.sq_buf[:n, :, 0] == ST_IDLE)
-        idle_sim_indices, idle_squad_indices = cp.where(is_idle)
+        idle_sim_indices = cp.where(cp.any(is_idle, axis=1))[0]
 
         if len(idle_sim_indices) == 0:
             self.history_parents.append(cp.arange(n, dtype=cp.int32))
             self.history_actions.append(cp.full(n, -1, dtype=cp.int16))
             return
 
-        factory_squad_indices = [SQ_MAP['FactoryT1'], SQ_MAP['FactoryT2'], SQ_MAP['Gantry']]
-        is_factory_mask = cp.isin(idle_squad_indices, cp.asarray(factory_squad_indices))
+        first_idle_sq = cp.argmax(is_idle[idle_sim_indices], axis=1)
 
-        # Separate factory and non-factory branches
-        factory_sim_idx = idle_sim_indices[is_factory_mask]
-        factory_squad_idx = idle_squad_indices[is_factory_mask]
+        opts_matrix = G_BUILD_OPTS[first_idle_sq]
 
-        other_sim_idx = idle_sim_indices[~is_factory_mask]
-        other_squad_idx = idle_squad_indices[~is_factory_mask]
+        mex_idx = UNIT_MAP['Mex']
+        adv_mex_idx = UNIT_MAP.get('Adv_Mex', -1)
+        mex_counts = self.inv_buf[idle_sim_indices, mex_idx]
+        if adv_mex_idx != -1:
+            mex_counts += self.inv_buf[idle_sim_indices, adv_mex_idx]
+        at_mex_limit = (mex_counts >= len(MEX_DISTANCES))
 
-        all_parent_idxs = []
-        all_squads = []
-        all_actions = []
+        opts_matrix[at_mex_limit, :] = cp.where(opts_matrix[at_mex_limit, :] == mex_idx, -1, opts_matrix[at_mex_limit, :])
 
-        # --- Factories ---
-        if len(factory_sim_idx) > 0:
-            opts_matrix = G_BUILD_OPTS[factory_squad_idx]
+        factory_squads = cp.asarray([SQ_MAP['FactoryT1'], SQ_MAP['FactoryT2'], SQ_MAP['Gantry']])
+        is_factory_mask = cp.isin(first_idle_sq, factory_squads)
 
-            # Branch for each build option
-            for i in range(opts_matrix.shape[1]):
-                actions = opts_matrix[:, i]
-                valid_mask = (actions != -1)
+        valid_mask = (opts_matrix != -1)
+        counts_gpu = cp.sum(valid_mask, axis=1)
+        counts_gpu += is_factory_mask
 
-                if cp.any(valid_mask):
-                    all_parent_idxs.append(factory_sim_idx[valid_mask])
-                    all_squads.append(factory_squad_idx[valid_mask])
-                    all_actions.append(actions[valid_mask])
-
-            # Branch for waiting
-            all_parent_idxs.append(factory_sim_idx)
-            all_squads.append(factory_squad_idx)
-            all_actions.append(cp.full(len(factory_sim_idx), -1, dtype=cp.int32)) # -1 for wait
-
-        # --- Other Squads ---
-        if len(other_sim_idx) > 0:
-            opts_matrix = G_BUILD_OPTS[other_squad_idx]
-            valid_mask = (opts_matrix != -1)
-
-            # This is not efficient, but it's a start
-            for i in range(opts_matrix.shape[1]):
-                actions = opts_matrix[:, i]
-                valid_mask = (actions != -1)
-
-                if cp.any(valid_mask):
-                    all_parent_idxs.append(other_sim_idx[valid_mask])
-                    all_squads.append(other_squad_idx[valid_mask])
-                    all_actions.append(actions[valid_mask])
-
-        if not all_parent_idxs:
-            self.history_parents.append(cp.arange(n, dtype=cp.int32))
-            self.history_actions.append(cp.full(n, -1, dtype=cp.int16))
-            return
-
-        parent_idxs = cp.concatenate(all_parent_idxs)
-        squads = cp.concatenate(all_squads)
-        actions = cp.concatenate(all_actions)
-        total_new = len(parent_idxs)
-
+        total_new = int(cp.sum(counts_gpu))
         if total_new == 0 or n + total_new > MAX_CANDIDATES:
             self.history_parents.append(cp.arange(n, dtype=cp.int32))
             self.history_actions.append(cp.full(n, -1, dtype=cp.int16))
             return
+
+        parent_idxs = cp.repeat(idle_sim_indices, counts_gpu)
+        squads = cp.repeat(first_idle_sq, counts_gpu)
+
+        actions = cp.full(total_new, -1, dtype=cp.int32)
+
+        action_indices = cp.arange(total_new)
+        ends = cp.cumsum(counts_gpu)
+        starts = cp.roll(ends, 1)
+        starts[0] = 0
+
+        factory_wait_indices = ends[is_factory_mask] - 1
+        actions[factory_wait_indices] = -1
+
+        build_action_mask = cp.ones(total_new, dtype=bool)
+        build_action_mask[factory_wait_indices] = False
+
+        build_actions = opts_matrix[valid_mask]
+        actions[build_action_mask] = build_actions
 
         start = n
         end = n + total_new
@@ -407,38 +381,36 @@ class BarSimOptimized:
         self.inv_buf[start:end] = self.inv_buf[parent_idxs]
         self.sq_buf[start:end] = self.sq_buf[parent_idxs]
 
-        # --- Set Actions and Travel Times ---
         waits = cp.zeros(total_new, dtype=cp.float32)
 
-        # GEO travel
+        is_mex_action = (actions == mex_idx) | (actions == adv_mex_idx)
+        if cp.any(is_mex_action):
+            parent_mex_counts = self.inv_buf[parent_idxs[is_mex_action], mex_idx] + self.inv_buf[parent_idxs[is_mex_action], adv_mex_idx]
+            valid_counts = cp.minimum(parent_mex_counts, len(MEX_DISTANCES) - 1)
+            waits[is_mex_action] = cp.asarray(MEX_DISTANCES, dtype=cp.float32)[valid_counts]
+
         geo_idx = UNIT_MAP.get('GEO', -1)
         is_geo_action = (actions == geo_idx)
         if cp.any(is_geo_action):
             parent_geo_counts = self.inv_buf[parent_idxs[is_geo_action], geo_idx]
             valid_counts = cp.minimum(parent_geo_counts, len(GEO_DISTANCES) - 1)
-            travel_times_gpu = cp.asarray(GEO_DISTANCES, dtype=cp.float32)
-            waits[is_geo_action] = travel_times_gpu[valid_counts]
+            waits[is_geo_action] = cp.asarray(GEO_DISTANCES, dtype=cp.float32)[valid_counts]
 
-        # Category change travel
         build_actions_mask = (actions != -1)
-        last_cat = self.sq_buf[new_range[build_actions_mask], squads[build_actions_mask], 6]
-        current_cat = G_STATS[actions[build_actions_mask], IDX_CATEGORY]
-        cat_changed = (last_cat != current_cat) & (last_cat != 0)
-        waits[build_actions_mask] = cp.where(cat_changed, 5, waits[build_actions_mask])
+        last_unit_id = self.sq_buf[new_range[build_actions_mask], squads[build_actions_mask], 6]
+        current_unit_id = actions[build_actions_mask]
+        unit_changed = (last_unit_id != current_unit_id) & (last_unit_id != 0)
+        waits[build_actions_mask] = cp.where(unit_changed, 5, waits[build_actions_mask])
 
-
-        # --- Apply States ---
         wait_mask = (actions == -1)
         self.sq_buf[new_range[wait_mask], squads[wait_mask], 0] = ST_WAITING
         self.sq_buf[new_range[wait_mask], squads[wait_mask], 4] = 20
 
         build_mask = ~wait_mask
         is_travel_mask = (waits > 0) & build_mask
-
         self.sq_buf[new_range[build_mask], squads[build_mask], 0] = ST_BUILDING
         self.sq_buf[new_range[build_mask], squads[build_mask], 2] = actions[build_mask]
         self.sq_buf[new_range[build_mask], squads[build_mask], 3] = 0
-
         self.sq_buf[new_range[is_travel_mask], squads[is_travel_mask], 0] = ST_TRAVEL
         self.sq_buf[new_range[is_travel_mask], squads[is_travel_mask], 4] = waits[is_travel_mask]
 
