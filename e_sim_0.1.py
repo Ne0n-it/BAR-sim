@@ -103,14 +103,15 @@ def register_options(squad_name, options_list):
         valid_opts = valid_opts[:MAX_OPTS]
     HOST_BUILD_OPTS[idx, :len(valid_opts)] = valid_opts
 
-register_options('Commander', ADB['Commander']['build_options'])
-register_options('FactoryT1', ADB['Vehicle_Plant']['unit_options'])
-register_options('FactoryT2', ADB['Advanced_Vehicle_Plant_T2']['unit_options'])
-register_options('Gantry', ADB['Experimental_Gantry_T3']['unit_options'])
-register_options('ConSquad1', ADB['ConVeh']['build_options'])
-register_options('ConSquad2', ADB['ConVeh']['build_options'])
-register_options('ConSquad3', ADB['ConVeh']['build_options'])
-register_options('Adv_ConSquad', ADB['Adv_ConVeh']['build_options'])
+# Register build options for each squad based on their unit definitions in the ADB database
+register_options('Commander', ADB['Commander']['build_options'])  # Commander can build: Mex, Solar, Wind, Vehicle_Plant
+register_options('FactoryT1', ADB['Vehicle_Plant']['unit_options'])  # Vehicle Plant (T1 Factory) produces: ConVeh, Offensive
+register_options('FactoryT2', ADB['Advanced_Vehicle_Plant_T2']['unit_options'])  # Advanced Vehicle Plant (T2 Factory) produces: Adv_ConVeh, Adv_Offensive
+register_options('Gantry', ADB['Experimental_Gantry_T3']['unit_options'])  # Experimental Gantry (T3 Factory) produces: Titan
+register_options('ConSquad1', ADB['ConVeh']['build_options'])  # Construction Vehicle squad can build: Mex, Solar, Wind, EStorage, Adv_Solar, GEO, EConv, Advanced_Vehicle_Plant_T2
+register_options('ConSquad2', ADB['ConVeh']['build_options'])  # Second Construction Vehicle squad (same build options as ConSquad1)
+register_options('ConSquad3', ADB['ConVeh']['build_options'])  # Third Construction Vehicle squad (same build options as ConSquad1)
+register_options('Adv_ConSquad', ADB['Adv_ConVeh']['build_options'])  # Advanced Construction Vehicle squad can build: Adv_Mex, Adv_Solar, FuR, AFur, Adv_GEO, Adv_EConv, Experimental_Gantry_T3
 
 G_BUILD_OPTS = cp.asarray(HOST_BUILD_OPTS)
 
@@ -366,20 +367,59 @@ class BarSimOptimized:
         n = self.total_sims
         if n <= BEAM_WIDTH: return
         
+        # Recupero dati esistenti
         inv_f = self.inv_buf[:n].astype(cp.float32)
+        m_curr = self.res_buf[:n, 0]
+        e_curr = self.res_buf[:n, 1]
+        e_max = self.res_buf[:n, 2]
+        
+        # Statistiche derivate
         m_yield = cp.dot(inv_f, G_STATS[:, IDX_M_YIELD])
-        m_spent = cp.dot(inv_f, G_STATS[:, IDX_M_COST])
+        m_spent_value = cp.dot(inv_f, G_STATS[:, IDX_M_COST])
         
-        score = (m_yield * 100) + m_spent
+        # --- 1. BASE SCORE ---
+        # Manteniamo la base: reddito + valore armata
+        score = (m_yield * 2000) + m_spent_value
         
-        low_e = (self.res_buf[:n, 1] < 50)
-        score -= (low_e * 5000)
+        # --- 2. PENALITÀ METALLO NON SPESO ---
+        # Più metallo hai in banca, più perdi punti (es. 1000 metallo = -2000 punti)
+        # Questo spinge l'AI a spendere tutto il metallo che entra.
+        score -= (m_curr * 2.0)
         
-        overflow = (self.res_buf[:n, 1] > self.res_buf[:n, 2] * 0.9)
-        score -= (overflow * 500)
+        # --- 3. PENALITÀ ENERGETICHE AGGIORNATE ---
+        # Stallo critico (E < 50): Uccide la simulazione (penalità enorme)
+        low_e = (e_curr < 50)
+        score -= (low_e * 800)
         
+        # Overflow Energia (E > 95%): Spreco risorse, penalità media
+        e_overflow = (e_curr > e_max * 0.95)
+        score -= (e_overflow * 800)
+        
+        # --- 4. PENALITÀ OVER-BUILD POWER (BP vs INCOME) ---
+        # Calcolo Total BP (somma del BP di tutte le unità possedute)
+        # Nota: IDX_BP_ADD deve essere l'indice corretto per il BP fornito dalle unità
+        total_bp = cp.dot(inv_f, G_STATS[:, IDX_BP_ADD])
+        
+        # Formula richiesta: capacità di spesa
+        spending_cap = total_bp * 0.025
+        
+        # Soglia: 150% del reddito di metallo
+        # Aggiungiamo 1e-5 per evitare divisioni per zero se m_yield è 0
+        income_threshold = (m_yield * 1.5) + 1e-5
+        
+        # Calcolo eccesso
+        excess_ratio = spending_cap / income_threshold
+        is_over_capacity = (excess_ratio > 1.0)
+        
+        # La penalità scala con quanto stiamo sforando. 
+        # Se siamo al 200% (ratio 2.0), penalizziamo pesantemente.
+        # Esempio: sforare del 50% toglie 2000 punti.
+        bp_penalty = (excess_ratio - 1.0) * 2000
+        
+        score -= (bp_penalty * is_over_capacity)
+
+        # --- SELEZIONE TOP K (Codice originale invariato) ---
         k = BEAM_WIDTH
-        # Top K selection
         top_idx = cp.argpartition(score, -k)[-k:]
         
         self.res_buf[:k] = self.res_buf[top_idx]
@@ -447,3 +487,4 @@ if __name__ == "__main__":
     print("Build Order:")
     for i, line in enumerate(bo):
         print(f"{i+1}. {line}")
+    input("Press Enter to exit...")
