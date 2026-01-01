@@ -312,11 +312,14 @@ class BarSimOptimized:
         unassigned_sim_indices = cp.where(is_unassigned)[0]
 
         if len(unassigned_sim_indices) > 0:
+            # This is a simplified logic, a full implementation would create branches for each option
             builder_unit_id = self.sq_buf[unassigned_sim_indices, unassigned_squad_idx, 2].astype(cp.int32)
             builder_bp = G_STATS[builder_unit_id, IDX_BP_ADD]
+
             target_squad_idx = SQ_MAP['ConSquad1']
             cp.add.at(self.sq_buf[:, target_squad_idx, 1], unassigned_sim_indices, builder_bp)
             self.sq_buf[unassigned_sim_indices, target_squad_idx, 0] = cp.maximum(self.sq_buf[unassigned_sim_indices, target_squad_idx, 0], ST_IDLE)
+
             self.sq_buf[unassigned_sim_indices, unassigned_squad_idx, 0] = ST_INACTIVE
             self.sq_buf[unassigned_sim_indices, unassigned_squad_idx, 2] = -1
 
@@ -354,21 +357,21 @@ class BarSimOptimized:
             self.history_actions.append(cp.full(n, -1, dtype=cp.int16))
             return
 
-        parent_idxs = cp.repeat(idle_sim_indices, counts_gpu)
-        squads = cp.repeat(first_idle_sq, counts_gpu)
+        ends = cp.cumsum(counts_gpu)
+        dest_indices = cp.arange(total_new, dtype=cp.int32)
+        map_idxs = cp.searchsorted(ends, dest_indices, side='right')
+
+        parent_idxs = idle_sim_indices[map_idxs]
+        squads = first_idle_sq[map_idxs]
 
         actions = cp.full(total_new, -1, dtype=cp.int32)
 
-        action_indices = cp.arange(total_new)
-        ends = cp.cumsum(counts_gpu)
-        starts = cp.roll(ends, 1)
-        starts[0] = 0
+        is_factory_expanded = is_factory_mask[map_idxs]
+        ends_expanded = ends[map_idxs]
 
-        factory_wait_indices = ends[is_factory_mask] - 1
-        actions[factory_wait_indices] = -1
+        wait_action_mask = (cp.arange(total_new) == ends_expanded - 1) & is_factory_expanded
 
-        build_action_mask = cp.ones(total_new, dtype=bool)
-        build_action_mask[factory_wait_indices] = False
+        build_action_mask = ~wait_action_mask
 
         build_actions = opts_matrix[valid_mask]
         actions[build_action_mask] = build_actions
