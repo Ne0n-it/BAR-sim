@@ -8,44 +8,47 @@ from tqdm import tqdm
 # ==========================================
 
 # Parametri Simulazione
-BEAM_WIDTH = 120000         # Numero di simulazioni sopravvissute
-MAX_CANDIDATES = 3000000    # Buffer VRAM (circa 500MB totali)
-TIME_LIMIT = 8 * 60        # 8 Minuti
-EVAL_INTERVAL = 900         # Pruning ogni 30s
-WIND_LEVEL = 0            # Vento medio
+BEAM_WIDTH = 120000
+MAX_CANDIDATES = 3000000
+TIME_LIMIT = 5 * 60
+EVAL_INTERVAL = 900
+WIND_LEVEL = 14
 MEX_METAL_YIELD = 2.0
+MEX_DISTANCES = [0, 5, 5, 10, 10, 15, 15, 20, 20, 25]
+GEO_DISTANCES = [15, 10, 10]
+
+# Coda di costruzione iniziale
+INITIAL_BUILD_QUEUE = [
+    ('Commander', 0, 'Mex'),
+    ('Commander', 0, 'Solar'),
+    ('Commander', 0, 'Vehicle_Plant'),
+    ('FactoryT1', 0, 'ConVeh'),
+]
 
 # --- DATABASE ARMADA COMPLETO ---
 ADB = {
-    'Commander': {'bp': 0, 'm': 0, 'e': 0, 'BP': 300, 'M': 2, 'E': 25, 'build_options': ['Mex', 'Solar', 'Wind', 'Vehicle_Plant']},
-    'Solar': {'m': 155, 'e': 0, 'bp': 2600, 'E': 20, 'M': 0, 'BP': 0, 'e_drain': 0},
-    'Adv_Solar': {'m': 350, 'e': 5000, 'bp': 7950, 'E': 75, 'M': 0, 'BP': 0, 'e_drain': 0},
-    'Wind': {'m': 40, 'e': 175, 'bp': 1600, 'E': WIND_LEVEL, 'M': 0, 'BP': 0, 'e_drain': 0},
-    'FuR': {'m': 4300, 'e': 21000, 'bp': 70000, 'E': 1000, 'M': 0, 'BP': 0, 'e_drain': 0},
-    'AFur': {'m': 9700, 'e': 69000, 'bp': 3125000, 'E': 3000, 'M': 0, 'BP': 0, 'e_drain': 0},
-    'Mex': {'m': 50, 'e': 500, 'bp': 1800, 'E': 0, 'M': MEX_METAL_YIELD, 'BP': 0, 'e_drain': 3},
-    'Adv_Mex': {'m': 620, 'e': 7700, 'bp': 14900, 'E': 0, 'M': MEX_METAL_YIELD * 4, 'BP': 0, 'e_drain': 20},
-    'EStorage': {'m': 260, 'e': 1700, 'bp': 4110, 'E': 0, 'M': 0, 'BP': 0, 'storage': 6000, 'e_drain': 0},
-    'DefMex': {'m': 190, 'e': 0, 'bp': 2400, 'E': 0, 'M': 0, 'BP': 0, 'e_drain': 0},
-    'GEO': {'m': 560, 'e': 13000, 'bp': 13100, 'E': 300, 'M': 0, 'BP': 0, 'e_drain': 0},
-    'Adv_GEO': {'m': 1600, 'e': 27000, 'bp': 33300, 'E': 1250, 'M': 0, 'BP': 0, 'e_drain': 0},
-    'EConv': {'m': 1, 'e': 1150, 'bp': 2600, 'E': 0, 'M': 1, 'BP': 0, 'e_drain': 70},
-    'Adv_EConv': {'m': 380, 'e': 21000, 'bp': 35000, 'E': 0, 'M': 10.3, 'BP': 0, 'e_drain': 600},
-
-    # Factories
-    'Vehicle_Plant': {'m': 590, 'e': 1550, 'bp': 4280, 'BP': 150, 'M': 0, 'E': 0, 'e_drain': 0, 'unit_options': ['ConVeh', 'Offensive']},
-    'Advanced_Vehicle_Plant_T2': {'m': 2900, 'e': 14000, 'bp': 33800, 'BP': 300, 'M': 0, 'E': 0, 'e_drain': 0, 'unit_options': ['Adv_ConVeh', 'Adv_Offensive']},
-    'Experimental_Gantry_T3': {'m': 7900, 'e': 58000, 'bp': 131800, 'BP': 600, 'M': 0, 'E': 0, 'e_drain': 0, 'unit_options': ['Titan']},
-
-    # Builders
-    'ConVeh': {'m': 135, 'e': 1950, 'bp': 4100, 'BP': 90, 'e_drain': 0, 'build_options': ['Mex', 'Solar', 'Wind', 'EStorage', 'Adv_Solar', 'GEO', 'EConv', 'Advanced_Vehicle_Plant_T2']},
-    'Adv_ConVeh': {'m': 550, 'e': 6800, 'bp': 12400, 'BP': 250, 'e_drain': 0, 'build_options': ['Adv_Mex', 'Adv_Solar', 'FuR', 'AFur', 'Adv_GEO', 'Adv_EConv', 'Experimental_Gantry_T3']},
-    'ConTurret': {'m': 210, 'e': 3200, 'bp': 5300, 'BP': 200, 'e_drain': 0, 'build_options': []},
-
-    # Offensive
-    'Offensive': {'m': 200, 'e': 2250, 'bp': 3500, 'BP': 0, 'e_drain': 0},
-    'Adv_Offensive': {'m': 950, 'e': 13000, 'bp': 17200, 'BP': 0, 'e_drain': 0},
-    'Titan' : {'m': 13500, 'e': 286000, 'bp': 276000, 'BP': 0, 'e_drain': 0}
+    'Commander': {'bp': 0, 'm': 0, 'e': 0, 'BP': 300, 'M': 2, 'E': 25, 'build_options': ['Mex', 'Solar', 'Wind', 'Vehicle_Plant'], 'category': 'BUILDER'},
+    'Solar': {'m': 155, 'e': 0, 'bp': 2600, 'E': 20, 'M': 0, 'BP': 0, 'e_drain': 0, 'category': 'ECONOMY'},
+    'Adv_Solar': {'m': 350, 'e': 5000, 'bp': 7950, 'E': 75, 'M': 0, 'BP': 0, 'e_drain': 0, 'category': 'ECONOMY'},
+    'Wind': {'m': 40, 'e': 175, 'bp': 1600, 'E': WIND_LEVEL, 'M': 0, 'BP': 0, 'e_drain': 0, 'category': 'ECONOMY'},
+    'FuR': {'m': 4300, 'e': 21000, 'bp': 70000, 'E': 1000, 'M': 0, 'BP': 0, 'e_drain': 0, 'category': 'ECONOMY'},
+    'AFur': {'m': 9700, 'e': 69000, 'bp': 3125000, 'E': 3000, 'M': 0, 'BP': 0, 'e_drain': 0, 'category': 'ECONOMY'},
+    'Mex': {'m': 50, 'e': 500, 'bp': 1800, 'E': 0, 'M': MEX_METAL_YIELD, 'BP': 0, 'e_drain': 3, 'category': 'ECONOMY'},
+    'Adv_Mex': {'m': 620, 'e': 7700, 'bp': 14900, 'E': 0, 'M': MEX_METAL_YIELD * 4, 'BP': 0, 'e_drain': 20, 'category': 'ECONOMY'},
+    'EStorage': {'m': 260, 'e': 1700, 'bp': 4110, 'E': 0, 'M': 0, 'BP': 0, 'storage': 6000, 'e_drain': 0, 'category': 'ECONOMY'},
+    'GEO': {'m': 560, 'e': 13000, 'bp': 13100, 'E': 300, 'M': 0, 'BP': 0, 'e_drain': 0, 'category': 'ECONOMY'},
+    'Adv_GEO': {'m': 1600, 'e': 27000, 'bp': 33300, 'E': 1250, 'M': 0, 'BP': 0, 'e_drain': 0, 'category': 'ECONOMY'},
+    'EConv': {'m': 1, 'e': 1150, 'bp': 2600, 'E': 0, 'M': 1, 'BP': 0, 'e_drain': 70, 'category': 'ECONOMY'},
+    'Adv_EConv': {'m': 380, 'e': 21000, 'bp': 35000, 'E': 0, 'M': 10.3, 'BP': 0, 'e_drain': 600, 'category': 'ECONOMY'},
+    'Vehicle_Plant': {'m': 590, 'e': 1550, 'bp': 4280, 'BP': 150, 'M': 0, 'E': 0, 'e_drain': 0, 'unit_options': ['ConVeh', 'Offensive'], 'category': 'FACTORY'},
+    'Advanced_Vehicle_Plant_T2': {'m': 2900, 'e': 14000, 'bp': 33800, 'BP': 300, 'M': 0, 'E': 0, 'e_drain': 0, 'unit_options': ['Adv_ConVeh', 'Adv_Offensive'], 'category': 'FACTORY'},
+    'Experimental_Gantry_T3': {'m': 7900, 'e': 58000, 'bp': 131800, 'BP': 600, 'M': 0, 'E': 0, 'e_drain': 0, 'unit_options': ['Titan'], 'category': 'FACTORY'},
+    'ConVeh': {'m': 135, 'e': 1950, 'bp': 4100, 'BP': 90, 'e_drain': 0, 'build_options': ['Mex', 'Solar', 'Wind', 'EStorage', 'Adv_Solar', 'GEO', 'EConv'], 'category': 'BUILDER'},
+    'Adv_ConVeh': {'m': 550, 'e': 6800, 'bp': 12400, 'BP': 250, 'e_drain': 0, 'build_options': ['Adv_Mex', 'Adv_Solar', 'FuR', 'AFur', 'Adv_GEO', 'Adv_EConv'], 'category': 'BUILDER'},
+    'ConTurret': {'m': 210, 'e': 3200, 'bp': 5300, 'BP': 200, 'e_drain': 0, 'build_options': [], 'category': 'BUILDER'},
+    'Offensive': {'m': 200, 'e': 2250, 'bp': 3500, 'BP': 0, 'e_drain': 0, 'category': 'OFFENSIVE'},
+    'Adv_Offensive': {'m': 950, 'e': 13000, 'bp': 17200, 'BP': 0, 'e_drain': 0, 'category': 'OFFENSIVE'},
+    'Titan' : {'m': 13500, 'e': 286000, 'bp': 276000, 'BP': 0, 'e_drain': 0, 'category': 'OFFENSIVE'}
 }
 
 # Mapping ID
@@ -53,9 +56,18 @@ UNIT_NAMES = list(ADB.keys())
 UNIT_MAP = {name: i for i, name in enumerate(UNIT_NAMES)}
 N_UNITS = len(UNIT_NAMES)
 
-SQUAD_NAMES = ['Commander', 'FactoryT1', 'ConSquad1', 'ConSquad2', 'ConSquad3', 'FactoryT2', 'Adv_ConSquad', 'Gantry']
+SQUAD_NAMES = ['Commander', 'FactoryT1', 'ConSquad1', 'ConSquad2', 'ConSquad3', 'FactoryT2', 'Adv_ConSquad', 'Gantry', 'Unassigned']
 N_SQUADS = len(SQUAD_NAMES)
 SQ_MAP = {name: i for i, name in enumerate(SQUAD_NAMES)}
+
+# Mappa Unità Fabbrica -> Squadra
+FACTORY_TO_SQUAD_MAP = {
+    UNIT_MAP.get('Vehicle_Plant'): SQ_MAP.get('FactoryT1'),
+    UNIT_MAP.get('Advanced_Vehicle_Plant_T2'): SQ_MAP.get('FactoryT2'),
+    UNIT_MAP.get('Experimental_Gantry_T3'): SQ_MAP.get('Gantry'),
+}
+# Rimuovi le unità/squadre non esistenti (se il DB cambia)
+FACTORY_TO_SQUAD_MAP = {k: v for k, v in FACTORY_TO_SQUAD_MAP.items() if k is not None and v is not None}
 
 # --- COMPILAZIONE MATRIX GPU (Host -> Device) ---
 IDX_M_COST = 0
@@ -65,22 +77,26 @@ IDX_M_YIELD = 3
 IDX_E_YIELD = 4
 IDX_E_DRAIN = 5
 IDX_BP_ADD = 6
-IDX_STORAGE = 7 
-STATS_COLS = 8
+IDX_STORAGE = 7
+IDX_CATEGORY = 8
+STATS_COLS = 9
 
 HOST_STATS = np.zeros((N_UNITS, STATS_COLS), dtype=np.float32)
+
+CATEGORY_MAP = {'BUILDER': 1, 'FACTORY': 2, 'OFFENSIVE': 3, 'ECONOMY': 4}
 
 for name, data in ADB.items():
     idx = UNIT_MAP[name]
     HOST_STATS[idx, IDX_M_COST] = data.get('m', 0)
     HOST_STATS[idx, IDX_E_COST] = data.get('e', 0)
-    HOST_STATS[idx, IDX_BP_COST] = data.get('bp', 1) 
+    HOST_STATS[idx, IDX_BP_COST] = data.get('bp', 1)
     HOST_STATS[idx, IDX_M_YIELD] = data.get('M', 0)
     HOST_STATS[idx, IDX_E_YIELD] = data.get('E', 0)
     HOST_STATS[idx, IDX_E_DRAIN] = data.get('e_drain', 0)
     HOST_STATS[idx, IDX_BP_ADD] = data.get('BP', 0)
     HOST_STATS[idx, IDX_STORAGE] = data.get('storage', 0)
-    
+    HOST_STATS[idx, IDX_CATEGORY] = CATEGORY_MAP.get(data.get('category', ''), 0)
+
     if name == 'Commander':
         HOST_STATS[idx, IDX_STORAGE] = 1000
 
@@ -96,22 +112,22 @@ def register_options(squad_name, options_list):
     valid_opts = [UNIT_MAP[u] for u in options_list if u in UNIT_MAP]
     if WIND_LEVEL < 6:
         wind_idx = UNIT_MAP.get('Wind', -1)
-        valid_opts = [u for u in valid_opts if u != wind_idx]
-        
+        if wind_idx != -1:
+            valid_opts = [u for u in valid_opts if u != wind_idx]
+
     count = len(valid_opts)
     if count > MAX_OPTS:
         valid_opts = valid_opts[:MAX_OPTS]
     HOST_BUILD_OPTS[idx, :len(valid_opts)] = valid_opts
 
-# Register build options for each squad based on their unit definitions in the ADB database
-register_options('Commander', ADB['Commander']['build_options'])  # Commander can build: Mex, Solar, Wind, Vehicle_Plant
-register_options('FactoryT1', ADB['Vehicle_Plant']['unit_options'])  # Vehicle Plant (T1 Factory) produces: ConVeh, Offensive
-register_options('FactoryT2', ADB['Advanced_Vehicle_Plant_T2']['unit_options'])  # Advanced Vehicle Plant (T2 Factory) produces: Adv_ConVeh, Adv_Offensive
-register_options('Gantry', ADB['Experimental_Gantry_T3']['unit_options'])  # Experimental Gantry (T3 Factory) produces: Titan
-register_options('ConSquad1', ADB['ConVeh']['build_options'])  # Construction Vehicle squad can build: Mex, Solar, Wind, EStorage, Adv_Solar, GEO, EConv, Advanced_Vehicle_Plant_T2
-register_options('ConSquad2', ADB['ConVeh']['build_options'])  # Second Construction Vehicle squad (same build options as ConSquad1)
-register_options('ConSquad3', ADB['ConVeh']['build_options'])  # Third Construction Vehicle squad (same build options as ConSquad1)
-register_options('Adv_ConSquad', ADB['Adv_ConVeh']['build_options'])  # Advanced Construction Vehicle squad can build: Adv_Mex, Adv_Solar, FuR, AFur, Adv_GEO, Adv_EConv, Experimental_Gantry_T3
+register_options('Commander', ADB['Commander']['build_options'])
+register_options('FactoryT1', ADB['Vehicle_Plant']['unit_options'])
+register_options('FactoryT2', ADB['Advanced_Vehicle_Plant_T2']['unit_options'])
+register_options('Gantry', ADB['Experimental_Gantry_T3']['unit_options'])
+register_options('ConSquad1', ADB['ConVeh']['build_options'])
+register_options('ConSquad2', ADB['ConVeh']['build_options'])
+register_options('ConSquad3', ADB['ConVeh']['build_options'])
+register_options('Adv_ConSquad', ADB['Adv_ConVeh']['build_options'])
 
 G_BUILD_OPTS = cp.asarray(HOST_BUILD_OPTS)
 
@@ -120,6 +136,8 @@ ST_INACTIVE = 0
 ST_IDLE = 1
 ST_BUILDING = 2
 ST_TRAVEL = 3
+ST_WAITING = 4
+ST_UNASSIGNED_BUILDER = 5
 
 # ==========================================
 # 2. CUSTOM CUDA KERNEL
@@ -131,33 +149,33 @@ physics_kernel = cp.ElementwiseKernel(
     '''
     float m_avail = m_curr + m_income;
     float e_avail = e_curr + e_income;
-    
+
     float e_demand = e_drain_build + e_drain_passive;
     float current_e_eff = 1.0;
-    
+
     if (e_demand > 0.0001) {
         current_e_eff = e_avail / e_demand;
         if (current_e_eff > 1.0) current_e_eff = 1.0;
     }
-    
+
     float m_real_demand = m_drain_build * current_e_eff;
     float m_eff = 1.0;
-    
+
     if (m_real_demand > 0.0001) {
         m_eff = m_avail / m_real_demand;
         if (m_eff > 1.0) m_eff = 1.0;
     }
-    
+
     float m_spent = m_real_demand * m_eff;
     m_new = m_avail - m_spent;
     if (m_new < 0) m_new = 0;
     if (m_new > 100000) m_new = 100000;
-    
+
     float e_spent = e_demand * current_e_eff;
     e_new = e_avail - e_spent;
     if (e_new < 0) e_new = 0;
     if (e_new > max_e) e_new = max_e;
-    
+
     e_eff = current_e_eff * m_eff;
     ''',
     'physics_update_kernel'
@@ -170,26 +188,36 @@ physics_kernel = cp.ElementwiseKernel(
 class BarSimOptimized:
     def __init__(self):
         self.total_sims = 1
-        
-        # Buffer Allocations
+
         self.res_buf = cp.zeros((MAX_CANDIDATES, 4), dtype=cp.float32)
-        
-        # FIX: Changed to int32 for atomic add support in CuPy
         self.inv_buf = cp.zeros((MAX_CANDIDATES, N_UNITS), dtype=cp.int32)
-        
-        self.sq_buf = cp.zeros((MAX_CANDIDATES, N_SQUADS, 6), dtype=cp.float32)
-        
-        # Init Commander
+        self.sq_buf = cp.zeros((MAX_CANDIDATES, N_SQUADS, 7), dtype=cp.float32)
+
         self.res_buf[0] = cp.array([1000, 1000, 1000, 0])
         self.inv_buf[0, UNIT_MAP['Commander']] = 1
-        
+
         self.sq_buf[0, SQ_MAP['Commander'], 0] = ST_IDLE
         self.sq_buf[0, SQ_MAP['Commander'], 1] = ADB['Commander']['BP']
         self.sq_buf[0, SQ_MAP['Commander'], 2] = -1
-        
-        # Traceback Arrays
+
         self.history_parents = []
         self.history_actions = []
+
+    def _apply_initial_build_queue(self):
+        for squad_name, action_type, unit_name in INITIAL_BUILD_QUEUE:
+            squad_idx = SQ_MAP.get(squad_name)
+            unit_idx = UNIT_MAP.get(unit_name)
+
+            if squad_idx is None or unit_idx is None:
+                print(f"WARNING: Invalid squad or unit in initial build queue: {squad_name}, {unit_name}")
+                continue
+
+            self.sq_buf[0, squad_idx, 0] = ST_BUILDING
+            self.sq_buf[0, squad_idx, 2] = unit_idx
+
+            while self.sq_buf[0, squad_idx, 0] == ST_BUILDING and self.res_buf[0, 3] < TIME_LIMIT:
+                self.physics_step()
+                self.resolve_completions()
 
     def physics_step(self):
         n = self.total_sims
@@ -198,251 +226,310 @@ class BarSimOptimized:
         inv_f = self.inv_buf[:n].astype(cp.float32)
         m_inc = cp.dot(inv_f, G_STATS[:, IDX_M_YIELD])
         e_inc = cp.dot(inv_f, G_STATS[:, IDX_E_YIELD])
-        
+
         sq_view = self.sq_buf[:n]
         is_building = (sq_view[:, :, 0] == ST_BUILDING)
         task_idx = sq_view[:, :, 2].astype(cp.int32)
         squad_bp = sq_view[:, :, 1]
-        
+
         safe_tasks = cp.maximum(task_idx, 0)
         target_stats = G_STATS[safe_tasks]
-        
+
         bp_req = target_stats[:, :, IDX_BP_COST]
         m_req = target_stats[:, :, IDX_M_COST]
         e_req = target_stats[:, :, IDX_E_COST]
-        
+
         safe_bp_req = bp_req + 1e-5
         ratio_e = e_req / safe_bp_req
         ratio_m = m_req / safe_bp_req
-        
+
         drain_e_build = cp.sum(ratio_e * squad_bp * is_building, axis=1)
         drain_m_build = cp.sum(ratio_m * squad_bp * is_building, axis=1)
         drain_e_passive = cp.dot(inv_f, G_STATS[:, IDX_E_DRAIN])
-        
+
         m_curr = self.res_buf[:n, 0]
         e_curr = self.res_buf[:n, 1]
         max_e = self.res_buf[:n, 2]
-        
+
         m_new, e_new, eff_factor = physics_kernel(
-            m_curr, e_curr, max_e,
-            m_inc, e_inc,
+            m_curr, e_curr, max_e, m_inc, e_inc,
             drain_m_build, drain_e_build, drain_e_passive
         )
-        
+
         self.res_buf[:n, 0] = m_new
         self.res_buf[:n, 1] = e_new
         self.res_buf[:n, 3] += 1
-        
+
         eff_expanded = eff_factor[:, None]
         self.sq_buf[:n, :, 3] += (squad_bp * is_building * eff_expanded)
-        
+
         is_travel = (sq_view[:, :, 0] == ST_TRAVEL)
         self.sq_buf[:n, :, 4] -= 1 * is_travel
+
+        is_waiting = (sq_view[:, :, 0] == ST_WAITING)
+        self.sq_buf[:n, :, 4] -= 1 * is_waiting
 
     def resolve_completions(self):
         n = self.total_sims
         sq_view = self.sq_buf[:n]
-        
+
         task_idx = sq_view[:, :, 2].astype(cp.int32)
         safe_tasks = cp.maximum(task_idx, 0)
         bp_costs = G_STATS[safe_tasks, IDX_BP_COST]
-        
+
         is_building = (sq_view[:, :, 0] == ST_BUILDING)
         finished = is_building & (sq_view[:, :, 3] >= bp_costs)
-        
-        if not cp.any(finished):
-            return
-            
+
+        if not cp.any(finished): return
+
         sim_idxs, sq_idxs = cp.where(finished)
         unit_ids = task_idx[sim_idxs, sq_idxs]
-        
-        # Now safe because inv_buf is int32
-        cp.add.at(self.inv_buf, (sim_idxs, unit_ids), 1)
-        
+
+        unit_categories = G_STATS[unit_ids, IDX_CATEGORY]
+
+        is_factory = (unit_categories == CATEGORY_MAP['FACTORY'])
+        if cp.any(is_factory):
+            factory_sim_idxs = sim_idxs[is_factory]
+            factory_unit_ids = unit_ids[is_factory]
+
+            # Converti la mappa Python in array CuPy per la ricerca
+            map_keys = cp.array(list(FACTORY_TO_SQUAD_MAP.keys()), dtype=cp.int32)
+            map_values = cp.array(list(FACTORY_TO_SQUAD_MAP.values()), dtype=cp.int32)
+
+            # Cerca gli ID delle fabbriche completate nella mappa
+            # Nota: questo approccio funziona bene solo se ogni factory_unit_id esiste in map_keys
+            # Un'implementazione più robusta userebbe un ciclo se ci fossero molti ID non mappati
+            sort_indices = cp.argsort(map_keys)
+            sorted_keys = map_keys[sort_indices]
+            sorted_values = map_values[sort_indices]
+
+            insert_indices = cp.searchsorted(sorted_keys, factory_unit_ids)
+            # Verifica che gli indici trovati corrispondano effettivamente a una chiave
+            valid_searches = (insert_indices < len(sorted_keys)) & (sorted_keys[insert_indices] == factory_unit_ids)
+
+            if cp.any(valid_searches):
+                target_squad_idxs = sorted_values[insert_indices[valid_searches]]
+                valid_sim_idxs = factory_sim_idxs[valid_searches]
+
+                # Attiva la squadra della fabbrica
+                self.sq_buf[valid_sim_idxs, target_squad_idxs, 0] = ST_IDLE
+                # Aggiungi la BP della fabbrica alla squadra
+                factory_bps = G_STATS[factory_unit_ids[valid_searches], IDX_BP_ADD]
+                cp.add.at(self.sq_buf, (valid_sim_idxs, target_squad_idxs, 1), factory_bps)
+
+        is_builder = (unit_categories == CATEGORY_MAP['BUILDER'])
+        if cp.any(is_builder):
+            builder_sim_idxs = sim_idxs[is_builder]
+            builder_unit_ids = unit_ids[is_builder]
+            unassigned_squad_idx = SQ_MAP['Unassigned']
+            self.sq_buf[builder_sim_idxs, unassigned_squad_idx, 0] = ST_UNASSIGNED_BUILDER
+            self.sq_buf[builder_sim_idxs, unassigned_squad_idx, 2] = builder_unit_ids.astype(cp.float32)
+
+        # Aggiungi tutte le unità tranne i costruttori all'inventario
+        # I costruttori vengono aggiunti implicitamente quando vengono assegnati a una squadra
+        non_builder_mask = ~is_builder
+        if cp.any(non_builder_mask):
+             cp.add.at(self.inv_buf, (sim_idxs[non_builder_mask], unit_ids[non_builder_mask]), 1)
+
         added_storage = G_STATS[unit_ids, IDX_STORAGE]
         cp.add.at(self.res_buf[:, 2], sim_idxs, added_storage)
-        
-        # Logic Builder Update
-        is_conveh = (unit_ids == UNIT_MAP.get('ConVeh', -1))
-        if cp.any(is_conveh):
-            s_idx = sim_idxs[is_conveh]
-            t_sq = SQ_MAP['ConSquad1']
-            self.sq_buf[s_idx, t_sq, 0] = cp.maximum(self.sq_buf[s_idx, t_sq, 0], ST_IDLE)
-            cp.add.at(self.sq_buf[:, t_sq, 1], s_idx, 90)
-            
-        is_vp = (unit_ids == UNIT_MAP.get('Vehicle_Plant', -1))
-        if cp.any(is_vp):
-            s_idx = sim_idxs[is_vp]
-            t_sq = SQ_MAP['FactoryT1']
-            self.sq_buf[s_idx, t_sq, 0] = ST_IDLE
-            self.sq_buf[s_idx, t_sq, 1] = 150
-            
+
         self.sq_buf[sim_idxs, sq_idxs, 0] = ST_IDLE
         self.sq_buf[sim_idxs, sq_idxs, 2] = -1
         self.sq_buf[sim_idxs, sq_idxs, 3] = 0
+        self.sq_buf[sim_idxs, sq_idxs, 6] = unit_ids.astype(cp.float32)
 
     def branching_step(self):
         n = self.total_sims
-        
-        # Reset travelers
-        travel_done = (self.sq_buf[:n, :, 0] == ST_TRAVEL) & (self.sq_buf[:n, :, 4] <= 0)
-        self.sq_buf[:n][travel_done] = ST_IDLE
-        
-        # Find IDLE
-        is_idle = (self.sq_buf[:n, :, 0] == ST_IDLE)
-        has_idle = cp.any(is_idle, axis=1)
-        
-        idle_sim_indices = cp.where(has_idle)[0]
-        if len(idle_sim_indices) == 0:
-             self.history_parents.append(cp.arange(n, dtype=cp.int32))
-             self.history_actions.append(cp.full(n, -1, dtype=cp.int16))
-             return
 
-        first_idle_sq = cp.argmax(is_idle[idle_sim_indices], axis=1)
-        
-        opts_matrix = G_BUILD_OPTS[first_idle_sq]
-        valid_mask = (opts_matrix != -1)
-        
-        # --- FIX: USE GPU ONLY (NO REPEAT) ---
-        counts_gpu = cp.sum(valid_mask, axis=1)
-        total_new = int(cp.sum(counts_gpu))
-        
-        if total_new + n > MAX_CANDIDATES:
+        self.sq_buf[:n][(self.sq_buf[:n, :, 0] == ST_TRAVEL) & (self.sq_buf[:n, :, 4] <= 0)] = ST_IDLE
+        self.sq_buf[:n][(self.sq_buf[:n, :, 0] == ST_WAITING) & (self.sq_buf[:n, :, 4] <= 0)] = ST_IDLE
+
+        unassigned_squad_idx = SQ_MAP['Unassigned']
+        is_unassigned_mask = (self.sq_buf[:n, unassigned_squad_idx, 0] == ST_UNASSIGNED_BUILDER)
+        is_idle_mask = (self.sq_buf[:n, :, 0] == ST_IDLE)
+
+        all_parent_idxs, all_squads, all_actions = [], [], []
+
+        unassigned_sim_indices = cp.where(is_unassigned_mask)[0]
+        if len(unassigned_sim_indices) > 0:
+            num_unassigned = len(unassigned_sim_indices)
+            target_squad_options = cp.asarray([SQ_MAP['ConSquad1'], SQ_MAP['ConSquad2'], SQ_MAP['ConSquad3']], dtype=cp.int32)
+            num_options = len(target_squad_options)
+
+            all_parent_idxs.append(cp.repeat(unassigned_sim_indices, num_options))
+            all_squads.append(cp.full(num_unassigned * num_options, unassigned_squad_idx, dtype=cp.int32))
+            all_actions.append(cp.tile(target_squad_options, num_unassigned))
+
+        idle_sim_indices, idle_squad_indices = cp.where(is_idle_mask)
+        if len(idle_sim_indices) > 0:
+            sim_is_unassigned = cp.isin(idle_sim_indices, unassigned_sim_indices)
+            idle_sim_indices = idle_sim_indices[~sim_is_unassigned]
+            idle_squad_indices = idle_squad_indices[~sim_is_unassigned]
+
+        if len(idle_sim_indices) > 0:
+            opts_matrix = G_BUILD_OPTS[idle_squad_indices]
+
+            mex_idx, adv_mex_idx = UNIT_MAP['Mex'], UNIT_MAP.get('Adv_Mex', -1)
+            mex_counts = self.inv_buf[idle_sim_indices, mex_idx] + (self.inv_buf[idle_sim_indices, adv_mex_idx] if adv_mex_idx != -1 else 0)
+            at_mex_limit = (mex_counts >= len(MEX_DISTANCES))
+            opts_matrix[at_mex_limit, :] = cp.where(opts_matrix[at_mex_limit, :] == mex_idx, -1, opts_matrix[at_mex_limit, :])
+
+            factory_squads = cp.asarray([SQ_MAP['FactoryT1'], SQ_MAP['FactoryT2'], SQ_MAP['Gantry']])
+            is_factory_mask = cp.isin(idle_squad_indices, factory_squads)
+
+            valid_mask = (opts_matrix != -1)
+            counts_gpu = cp.sum(valid_mask, axis=1) + is_factory_mask
+            total_idle_branches = int(cp.sum(counts_gpu))
+
+            if total_idle_branches > 0:
+                ends = cp.cumsum(counts_gpu)
+                map_idxs = cp.searchsorted(ends, cp.arange(total_idle_branches, dtype=cp.int32), side='right')
+
+                all_parent_idxs.append(idle_sim_indices[map_idxs])
+                all_squads.append(idle_squad_indices[map_idxs])
+
+                actions_idle = cp.full(total_idle_branches, -1, dtype=cp.int32)
+                wait_action_mask = (cp.arange(total_idle_branches) == ends[map_idxs] - 1) & is_factory_mask[map_idxs]
+                actions_idle[~wait_action_mask] = opts_matrix[valid_mask]
+                all_actions.append(actions_idle)
+
+        if not all_parent_idxs:
             self.history_parents.append(cp.arange(n, dtype=cp.int32))
             self.history_actions.append(cp.full(n, -1, dtype=cp.int16))
             return
-            
-        # --- GPU INVERSE RLE (Vectorized Expansion) ---
-        ends = cp.cumsum(counts_gpu)
-        dest_indices = cp.arange(total_new, dtype=cp.int32)
-        map_idxs = cp.searchsorted(ends, dest_indices, side='right')
-        
-        parent_idxs = idle_sim_indices[map_idxs]
-        squads = first_idle_sq[map_idxs]
-        actions = opts_matrix[valid_mask]
-        
-        # Write Block
-        start = n
-        end = n + total_new
+
+        parent_idxs = cp.concatenate(all_parent_idxs)
+        squads = cp.concatenate(all_squads)
+        actions = cp.concatenate(all_actions)
+        total_new = len(parent_idxs)
+
+        if total_new == 0 or n + total_new > MAX_CANDIDATES:
+            self.history_parents.append(cp.arange(n, dtype=cp.int32))
+            self.history_actions.append(cp.full(n, -1, dtype=cp.int16))
+            return
+
+        start, end = n, n + total_new
         new_range = cp.arange(start, end)
-        
         self.res_buf[start:end] = self.res_buf[parent_idxs]
         self.inv_buf[start:end] = self.inv_buf[parent_idxs]
         self.sq_buf[start:end] = self.sq_buf[parent_idxs]
-        
-        # Set Action Parameters
-        mex_idx = UNIT_MAP['Mex']
-        geo_idx = UNIT_MAP.get('GEO', -1)
-        
-        waits = cp.zeros_like(actions)
-        waits[actions == mex_idx] = 5
-        waits[actions == geo_idx] = 15
-        
-        # Default: Building
-        self.sq_buf[new_range, squads, 0] = ST_BUILDING
-        self.sq_buf[new_range, squads, 2] = actions.astype(cp.float32)
-        self.sq_buf[new_range, squads, 3] = 0
-        
-        # Override: Travel
-        is_travel_act = (waits > 0)
-        idx_tr = new_range[is_travel_act]
-        sq_tr = squads[is_travel_act]
-        
-        self.sq_buf[idx_tr, sq_tr, 0] = ST_TRAVEL
-        self.sq_buf[idx_tr, sq_tr, 4] = waits[is_travel_act].astype(cp.float32)
 
-        # History Update
+        assign_builder_mask = (squads == unassigned_squad_idx)
+        if cp.any(assign_builder_mask):
+            indices = new_range[assign_builder_mask]
+            target_squads = actions[assign_builder_mask]
+            builder_unit_ids = self.sq_buf[indices, unassigned_squad_idx, 2].astype(cp.int32)
+            builder_bps = G_STATS[builder_unit_ids, IDX_BP_ADD]
+
+            cp.add.at(self.sq_buf, (indices, target_squads, 1), builder_bps)
+            self.sq_buf[indices, target_squads, 0] = cp.maximum(self.sq_buf[indices, target_squads, 0], ST_IDLE)
+            self.sq_buf[indices, unassigned_squad_idx, 0] = ST_INACTIVE
+            self.sq_buf[indices, unassigned_squad_idx, 2] = -1
+
+        build_wait_mask = ~assign_builder_mask
+        if cp.any(build_wait_mask):
+            indices, p_idxs = new_range[build_wait_mask], parent_idxs[build_wait_mask]
+            squads_bw, actions_bw = squads[build_wait_mask], actions[build_wait_mask]
+
+            waits = cp.zeros(len(actions_bw), dtype=cp.float32)
+            mex_idx, adv_mex_idx = UNIT_MAP['Mex'], UNIT_MAP.get('Adv_Mex', -1)
+            is_mex_action = (actions_bw == mex_idx) | (actions_bw == adv_mex_idx if adv_mex_idx !=-1 else False)
+            if cp.any(is_mex_action):
+                mex_counts = self.inv_buf[p_idxs[is_mex_action], mex_idx] + (self.inv_buf[p_idxs[is_mex_action], adv_mex_idx] if adv_mex_idx !=-1 else 0)
+                valid_counts = cp.minimum(mex_counts, len(MEX_DISTANCES) - 1)
+                waits[is_mex_action] = cp.asarray(MEX_DISTANCES, dtype=cp.float32)[valid_counts]
+
+            geo_idx = UNIT_MAP.get('GEO', -1)
+            is_geo_action = (actions_bw == geo_idx)
+            if cp.any(is_geo_action):
+                geo_counts = self.inv_buf[p_idxs[is_geo_action], geo_idx]
+                valid_counts = cp.minimum(geo_counts, len(GEO_DISTANCES) - 1)
+                waits[is_geo_action] = cp.asarray(GEO_DISTANCES, dtype=cp.float32)[valid_counts]
+
+            build_actions_mask = (actions_bw != -1)
+            last_built = self.sq_buf[indices[build_actions_mask], squads_bw[build_actions_mask], 6]
+            unit_changed = (last_built != actions_bw[build_actions_mask]) & (last_built != 0)
+            generic_travel_mask = (waits[build_actions_mask] == 0) & unit_changed
+            waits[build_actions_mask] = cp.where(generic_travel_mask, 5, waits[build_actions_mask])
+
+            wait_mask_bw = (actions_bw == -1)
+            self.sq_buf[indices[wait_mask_bw], squads_bw[wait_mask_bw], 0] = ST_WAITING
+            self.sq_buf[indices[wait_mask_bw], squads_bw[wait_mask_bw], 4] = 20
+
+            build_mask_bw = ~wait_mask_bw
+            is_travel_mask = (waits > 0) & build_mask_bw
+            self.sq_buf[indices[build_mask_bw], squads_bw[build_mask_bw], 0] = ST_BUILDING
+            self.sq_buf[indices[build_mask_bw], squads_bw[build_mask_bw], 2] = actions_bw[build_mask_bw]
+            self.sq_buf[indices[build_mask_bw], squads_bw[build_mask_bw], 3] = 0
+
+            travel_indices = indices[build_mask_bw][is_travel_mask[build_mask_bw]]
+            travel_squads = squads_bw[build_mask_bw][is_travel_mask[build_mask_bw]]
+            travel_waits = waits[build_mask_bw][is_travel_mask[build_mask_bw]]
+            self.sq_buf[travel_indices, travel_squads, 0] = ST_TRAVEL
+            self.sq_buf[travel_indices, travel_squads, 4] = travel_waits
+
         self.total_sims = end
-        
-        full_parents = cp.concatenate((cp.arange(n, dtype=cp.int32), parent_idxs))
-        
-        act_exist = cp.full(n, -1, dtype=cp.int16)
+
+        sims_branched_from = cp.unique(parent_idxs)
+        sims_not_branched = cp.ones(n, dtype=bool)
+        sims_not_branched[sims_branched_from] = False
+        existing_indices = cp.where(sims_not_branched)[0]
+
+        full_parents = cp.concatenate((existing_indices, parent_idxs))
+        act_exist = cp.full(len(existing_indices), -1, dtype=cp.int16)
         act_new = ((squads.astype(cp.int16) << 8) | actions.astype(cp.int16))
         full_actions = cp.concatenate((act_exist, act_new))
-        
+
         self.history_parents.append(full_parents)
         self.history_actions.append(full_actions)
 
     def prune(self):
         n = self.total_sims
         if n <= BEAM_WIDTH: return
-        
-        # Recupero dati esistenti
         inv_f = self.inv_buf[:n].astype(cp.float32)
-        m_curr = self.res_buf[:n, 0]
-        e_curr = self.res_buf[:n, 1]
-        e_max = self.res_buf[:n, 2]
-        
-        # Statistiche derivate
         m_yield = cp.dot(inv_f, G_STATS[:, IDX_M_YIELD])
         m_spent_value = cp.dot(inv_f, G_STATS[:, IDX_M_COST])
-        
-        # --- 1. BASE SCORE ---
-        # Manteniamo la base: reddito + valore armata
         score = (m_yield * 2000) + m_spent_value
-        
-        # --- 2. PENALITÀ METALLO NON SPESO ---
-        # Più metallo hai in banca, più perdi punti (es. 1000 metallo = -2000 punti)
-        # Questo spinge l'AI a spendere tutto il metallo che entra.
+        m_curr = self.res_buf[:n, 0]
         score -= (m_curr * 2.0)
-        
-        # --- 3. PENALITÀ ENERGETICHE AGGIORNATE ---
-        # Stallo critico (E < 50): Uccide la simulazione (penalità enorme)
+        e_curr = self.res_buf[:n, 1]
+        e_max = self.res_buf[:n, 2]
         low_e = (e_curr < 50)
         score -= (low_e * 800)
-        
-        # Overflow Energia (E > 95%): Spreco risorse, penalità media
         e_overflow = (e_curr > e_max * 0.95)
         score -= (e_overflow * 800)
-        
-        # --- 4. PENALITÀ OVER-BUILD POWER (BP vs INCOME) ---
-        # Calcolo Total BP (somma del BP di tutte le unità possedute)
-        # Nota: IDX_BP_ADD deve essere l'indice corretto per il BP fornito dalle unità
         total_bp = cp.dot(inv_f, G_STATS[:, IDX_BP_ADD])
-        
-        # Formula richiesta: capacità di spesa
         spending_cap = total_bp * 0.025
-        
-        # Soglia: 150% del reddito di metallo
-        # Aggiungiamo 1e-5 per evitare divisioni per zero se m_yield è 0
         income_threshold = (m_yield * 1.5) + 1e-5
-        
-        # Calcolo eccesso
         excess_ratio = spending_cap / income_threshold
         is_over_capacity = (excess_ratio > 1.0)
-        
-        # La penalità scala con quanto stiamo sforando. 
-        # Se siamo al 200% (ratio 2.0), penalizziamo pesantemente.
-        # Esempio: sforare del 50% toglie 2000 punti.
         bp_penalty = (excess_ratio - 1.0) * 2000
-        
         score -= (bp_penalty * is_over_capacity)
-
-        # --- SELEZIONE TOP K (Codice originale invariato) ---
         k = BEAM_WIDTH
         top_idx = cp.argpartition(score, -k)[-k:]
-        
         self.res_buf[:k] = self.res_buf[top_idx]
         self.inv_buf[:k] = self.inv_buf[top_idx]
         self.sq_buf[:k] = self.sq_buf[top_idx]
         self.total_sims = k
-        
         self.history_parents.append(top_idx.astype(cp.int32))
         self.history_actions.append(cp.full(k, -2, dtype=cp.int16))
 
     def run(self):
         print(f"STARTING GPU SIM: {BEAM_WIDTH} Beams, {MAX_CANDIDATES} VRAM Buffer")
-        pbar = tqdm(range(TIME_LIMIT))
-        
-        for t in pbar:
+        self._apply_initial_build_queue()
+
+        initial_time = int(self.res_buf[0, 3].item())
+        pbar = tqdm(initial=initial_time, total=TIME_LIMIT, desc="Simulating")
+
+        for t in range(initial_time, TIME_LIMIT):
+            pbar.update(1)
             self.physics_step()
             self.resolve_completions()
             self.branching_step()
-            
-            if t % EVAL_INTERVAL == 0 or self.total_sims > MAX_CANDIDATES * 0.8:
+            if t > 0 and (t % EVAL_INTERVAL == 0 or self.total_sims > MAX_CANDIDATES * 0.8):
                 self.prune()
                 pbar.set_description(f"Sims: {self.total_sims}")
-                
         self.prune()
         return self.get_result()
 
@@ -451,29 +538,33 @@ class BarSimOptimized:
         inv_f = self.inv_buf[:n].astype(cp.float32)
         m_yield = cp.dot(inv_f, G_STATS[:, IDX_M_YIELD])
         score = (m_yield * 100) + cp.dot(inv_f, G_STATS[:, IDX_M_COST])
-        
         best_idx = int(cp.argmax(score))
-        
         h_parents = [h.get() for h in self.history_parents]
         h_actions = [h.get() for h in self.history_actions]
-        
         bo_log = []
         curr = best_idx
-        
-        # Traceback Logic
         for i in range(len(h_parents)-1, -1, -1):
             if curr >= len(h_parents[i]): break
-            
             p = h_parents[i][curr]
             a = h_actions[i][curr]
-            
             if a >= 0:
-                sq = (a >> 8)
-                u = (a & 0xFF)
-                bo_log.append(f"{SQUAD_NAMES[sq]} -> {UNIT_NAMES[u]}")
-            
+                sq_idx = (a >> 8)
+                action_val = (a & 0xFF)
+                squad_name = SQUAD_NAMES[sq_idx]
+
+                if squad_name == 'Unassigned':
+                    # Azione di assegnazione del costruttore
+                    target_squad_name = SQUAD_NAMES[action_val]
+                    bo_log.append(f"New Constructor -> Assign to {target_squad_name}")
+                elif action_val < len(UNIT_NAMES):
+                    # Azione di costruzione
+                    unit_name = UNIT_NAMES[action_val]
+                    bo_log.append(f"{squad_name} -> {unit_name}")
+                else:
+                    # Azione di attesa (action_val sarebbe -1, ma viene filtrato da a >= 0)
+                    # Questo ramo gestisce i casi imprevisti
+                    bo_log.append(f"{squad_name} -> WAIT")
             curr = p
-            
         return list(reversed(bo_log)), float(score[best_idx])
 
 if __name__ == "__main__":
@@ -481,7 +572,6 @@ if __name__ == "__main__":
     st = time.time()
     bo, score = sim.run()
     et = time.time()
-    
     print(f"\nCompleted in {et-st:.2f}s")
     print(f"Best Score: {score}")
     print("Build Order:")
