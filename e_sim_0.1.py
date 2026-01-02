@@ -517,8 +517,12 @@ class BarSimOptimized:
     def run(self):
         print(f"STARTING GPU SIM: {BEAM_WIDTH} Beams, {MAX_CANDIDATES} VRAM Buffer")
         self._apply_initial_build_queue()
-        pbar = tqdm(range(int(self.res_buf[0, 3].item()), TIME_LIMIT))
-        for t in pbar:
+
+        initial_time = int(self.res_buf[0, 3].item())
+        pbar = tqdm(initial=initial_time, total=TIME_LIMIT, desc="Simulating")
+
+        for t in range(initial_time, TIME_LIMIT):
+            pbar.update(1)
             self.physics_step()
             self.resolve_completions()
             self.branching_step()
@@ -543,9 +547,22 @@ class BarSimOptimized:
             p = h_parents[i][curr]
             a = h_actions[i][curr]
             if a >= 0:
-                sq = (a >> 8)
-                u = (a & 0xFF)
-                bo_log.append(f"{SQUAD_NAMES[sq]} -> {UNIT_NAMES[u]}")
+                sq_idx = (a >> 8)
+                action_val = (a & 0xFF)
+                squad_name = SQUAD_NAMES[sq_idx]
+
+                if squad_name == 'Unassigned':
+                    # Azione di assegnazione del costruttore
+                    target_squad_name = SQUAD_NAMES[action_val]
+                    bo_log.append(f"New Constructor -> Assign to {target_squad_name}")
+                elif action_val < len(UNIT_NAMES):
+                    # Azione di costruzione
+                    unit_name = UNIT_NAMES[action_val]
+                    bo_log.append(f"{squad_name} -> {unit_name}")
+                else:
+                    # Azione di attesa (action_val sarebbe -1, ma viene filtrato da a >= 0)
+                    # Questo ramo gestisce i casi imprevisti
+                    bo_log.append(f"{squad_name} -> WAIT")
             curr = p
         return list(reversed(bo_log)), float(score[best_idx])
 
