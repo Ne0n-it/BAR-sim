@@ -60,6 +60,15 @@ SQUAD_NAMES = ['Commander', 'FactoryT1', 'ConSquad1', 'ConSquad2', 'ConSquad3', 
 N_SQUADS = len(SQUAD_NAMES)
 SQ_MAP = {name: i for i, name in enumerate(SQUAD_NAMES)}
 
+# Mappa Unità Fabbrica -> Squadra
+FACTORY_TO_SQUAD_MAP = {
+    UNIT_MAP.get('Vehicle_Plant'): SQ_MAP.get('FactoryT1'),
+    UNIT_MAP.get('Advanced_Vehicle_Plant_T2'): SQ_MAP.get('FactoryT2'),
+    UNIT_MAP.get('Experimental_Gantry_T3'): SQ_MAP.get('Gantry'),
+}
+# Rimuovi le unità/squadre non esistenti (se il DB cambia)
+FACTORY_TO_SQUAD_MAP = {k: v for k, v in FACTORY_TO_SQUAD_MAP.items() if k is not None and v is not None}
+
 # --- COMPILAZIONE MATRIX GPU (Host -> Device) ---
 IDX_M_COST = 0
 IDX_E_COST = 1
@@ -278,8 +287,38 @@ class BarSimOptimized:
         unit_ids = task_idx[sim_idxs, sq_idxs]
 
         unit_categories = G_STATS[unit_ids, IDX_CATEGORY]
-        is_builder = (unit_categories == CATEGORY_MAP['BUILDER'])
 
+        is_factory = (unit_categories == CATEGORY_MAP['FACTORY'])
+        if cp.any(is_factory):
+            factory_sim_idxs = sim_idxs[is_factory]
+            factory_unit_ids = unit_ids[is_factory]
+
+            # Converti la mappa Python in array CuPy per la ricerca
+            map_keys = cp.array(list(FACTORY_TO_SQUAD_MAP.keys()), dtype=cp.int32)
+            map_values = cp.array(list(FACTORY_TO_SQUAD_MAP.values()), dtype=cp.int32)
+
+            # Cerca gli ID delle fabbriche completate nella mappa
+            # Nota: questo approccio funziona bene solo se ogni factory_unit_id esiste in map_keys
+            # Un'implementazione più robusta userebbe un ciclo se ci fossero molti ID non mappati
+            sort_indices = cp.argsort(map_keys)
+            sorted_keys = map_keys[sort_indices]
+            sorted_values = map_values[sort_indices]
+
+            insert_indices = cp.searchsorted(sorted_keys, factory_unit_ids)
+            # Verifica che gli indici trovati corrispondano effettivamente a una chiave
+            valid_searches = (insert_indices < len(sorted_keys)) & (sorted_keys[insert_indices] == factory_unit_ids)
+
+            if cp.any(valid_searches):
+                target_squad_idxs = sorted_values[insert_indices[valid_searches]]
+                valid_sim_idxs = factory_sim_idxs[valid_searches]
+
+                # Attiva la squadra della fabbrica
+                self.sq_buf[valid_sim_idxs, target_squad_idxs, 0] = ST_IDLE
+                # Aggiungi la BP della fabbrica alla squadra
+                factory_bps = G_STATS[factory_unit_ids[valid_searches], IDX_BP_ADD]
+                cp.add.at(self.sq_buf, (valid_sim_idxs, target_squad_idxs, 1), factory_bps)
+
+        is_builder = (unit_categories == CATEGORY_MAP['BUILDER'])
         if cp.any(is_builder):
             builder_sim_idxs = sim_idxs[is_builder]
             builder_unit_ids = unit_ids[is_builder]
@@ -287,9 +326,11 @@ class BarSimOptimized:
             self.sq_buf[builder_sim_idxs, unassigned_squad_idx, 0] = ST_UNASSIGNED_BUILDER
             self.sq_buf[builder_sim_idxs, unassigned_squad_idx, 2] = builder_unit_ids.astype(cp.float32)
 
+        # Aggiungi tutte le unità tranne i costruttori all'inventario
+        # I costruttori vengono aggiunti implicitamente quando vengono assegnati a una squadra
         non_builder_mask = ~is_builder
         if cp.any(non_builder_mask):
-            cp.add.at(self.inv_buf, (sim_idxs[non_builder_mask], unit_ids[non_builder_mask]), 1)
+             cp.add.at(self.inv_buf, (sim_idxs[non_builder_mask], unit_ids[non_builder_mask]), 1)
 
         added_storage = G_STATS[unit_ids, IDX_STORAGE]
         cp.add.at(self.res_buf[:, 2], sim_idxs, added_storage)
