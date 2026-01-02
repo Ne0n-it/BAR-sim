@@ -215,8 +215,7 @@ class BarSimOptimized:
             self.sq_buf[0, squad_idx, 0] = ST_BUILDING
             self.sq_buf[0, squad_idx, 2] = unit_idx
 
-            initial_unit_count = self.inv_buf[0, unit_idx]
-            while self.inv_buf[0, unit_idx] == initial_unit_count and self.res_buf[0, 3] < TIME_LIMIT:
+            while self.sq_buf[0, squad_idx, 0] == ST_BUILDING and self.res_buf[0, 3] < TIME_LIMIT:
                 self.physics_step()
                 self.resolve_completions()
 
